@@ -6,6 +6,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.ObjectError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -93,6 +95,39 @@ public class CustomRestExceptionHandler extends ResponseEntityExceptionHandler {
         return new ResponseEntity<>(apiError, new HttpHeaders(), apiError.getStatus());
     }
 
+    /**
+     * Esta exceção é lançada quando a requisição está com um metódo HTTP não suportado
+     */
+    @Override
+    protected ResponseEntity<Object> handleHttpRequestMethodNotSupported(HttpRequestMethodNotSupportedException ex,
+                                                                         HttpHeaders headers,
+                                                                         HttpStatus status,
+                                                                         WebRequest request) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(ex.getMethod());
+        builder.append(" method is not supported for this request. Supported methods are ");
+        Objects.requireNonNull(ex.getSupportedHttpMethods()).forEach(t -> builder.append(t).append(" "));
+
+        ApiError apiError = new ApiError(HttpStatus.METHOD_NOT_ALLOWED, ex.getLocalizedMessage(), builder.toString());
+        return new ResponseEntity<>(apiError, new HttpHeaders(), apiError.getStatus());
+    }
+
+    /**
+     * Esta exceção é lançada quando a requisição contém um tipo de mídia não suportado
+     */
+    @Override
+    protected ResponseEntity<Object> handleHttpMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex,
+                                                                     HttpHeaders headers,
+                                                                     HttpStatus status,
+                                                                     WebRequest request) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(ex.getContentType());
+        builder.append(" media type is not supported. Supported media types are ");
+        ex.getSupportedMediaTypes().forEach(t -> builder.append(t).append(", "));
+
+        ApiError apiError = new ApiError(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex.getLocalizedMessage(), builder.substring(0, builder.length() - 2));
+        return new ResponseEntity<>(apiError, new HttpHeaders(), apiError.getStatus());
+    }
 
     /**
      * Esta exceção é lançada quando há violações de restrição
@@ -120,6 +155,15 @@ public class CustomRestExceptionHandler extends ResponseEntityExceptionHandler {
         String error = ex.getName() + " should be of type " + Objects.requireNonNull(ex.getRequiredType()).getName();
 
         ApiError apiError = new ApiError(HttpStatus.BAD_REQUEST, ex.getLocalizedMessage(), error);
+        return new ResponseEntity<>(apiError, new HttpHeaders(), apiError.getStatus());
+    }
+
+    /**
+     * Manipula todas as outras excessões que não tem um handle específico
+     */
+    @ExceptionHandler({Exception.class})
+    public ResponseEntity<Object> handleAll(Exception ex, WebRequest request) {
+        ApiError apiError = new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, ex.getLocalizedMessage(), "error occurred");
         return new ResponseEntity<>(apiError, new HttpHeaders(), apiError.getStatus());
     }
 }
